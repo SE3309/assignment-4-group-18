@@ -95,27 +95,6 @@ app.delete('/api/users/:userID', (req, res) => {
   });
 });
 
-// GET USER SHIPPING INFO ON FILE
-// Get all shipping information for a specific user
-app.get('/api/shipping/:userID', (req, res) => {
-  const { userID } = req.params;
-
-  const query = `
-    SELECT * FROM ShippingInfo
-    WHERE userID = ?
-  `;
-  
-  db.query(query, [userID], (err, results) => {
-    if (err) {
-      console.error(err);
-      return res.status(500).send('Error retrieving shipping information');
-    }
-    if (results.length === 0) {
-      return res.status(404).send('No shipping information found for this user');
-    }
-    res.json(results);
-  });
-});
 
 // CRUD for product
 // Retrieve all products
@@ -286,7 +265,7 @@ app.put('/api/orders/expire/:date', (req, res) => {
 });
 
 // Mark a specific order as EXPIRED
-app.put('/api/orders/expire/:orderID', (req, res) => {
+app.put('/api/orders/setexpire/:orderID', (req, res) => {
   const { orderID } = req.params; // Get the orderID from URL
   const query = `
     UPDATE Orders
@@ -306,7 +285,7 @@ app.put('/api/orders/expire/:orderID', (req, res) => {
 });
 // View all orders made before a certain date
 app.get('/api/orders/before/:date', (req, res) => {
-  const { date } = req.params; // Get the date parameter from URL
+  const { date } = req.params;// Get the date parameter from URL
   const query = `
     SELECT * FROM Orders
     WHERE orderDate < ?
