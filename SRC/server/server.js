@@ -95,6 +95,28 @@ app.delete('/api/users/:userID', (req, res) => {
   });
 });
 
+// GET USER SHIPPING INFO ON FILE
+// Get all shipping information for a specific user
+app.get('/api/shipping/:userID', (req, res) => {
+  const { userID } = req.params;
+
+  const query = `
+    SELECT * FROM ShippingInfo
+    WHERE userID = ?
+  `;
+  
+  db.query(query, [userID], (err, results) => {
+    if (err) {
+      console.error(err);
+      return res.status(500).send('Error retrieving shipping information');
+    }
+    if (results.length === 0) {
+      return res.status(404).send('No shipping information found for this user');
+    }
+    res.json(results);
+  });
+});
+
 // CRUD for product
 // Retrieve all products
 app.get('/api/products', (req, res) => {
@@ -211,20 +233,20 @@ app.get('/api/inventory/restock', (req, res) => {
 // PUT Product Inventory based on productID and location
 app.put('/api/inventory/update/:productID/:location', (req, res) => {
   const { productID, location } = req.params; // Get productID and location from URL params
-  const { quantity, restockThreshold } = req.body; // Get new quantity and restockThreshold from the request body
+  const { quantity } = req.body; // Get quantity from the request body
 
-  if (quantity === undefined || restockThreshold === undefined) {
-    return res.status(400).send('Quantity and restockThreshold are required');
+  if (quantity === undefined) {
+    return res.status(400).send('Quantity is required');
   }
 
   // SQL query to update the inventory based on productID and location
   const query = `
     UPDATE Inventory
-    SET quantity = ?, restockThreshold = ?
+    SET quantity = ?
     WHERE productID = ? AND location = ?
   `;
 
-  db.query(query, [quantity, restockThreshold, productID, location], (err, results) => {
+  db.query(query, [quantity, productID, location], (err, results) => {
     if (err) {
       console.error(err);
       return res.status(500).send('Error updating inventory');
@@ -237,6 +259,7 @@ app.put('/api/inventory/update/:productID/:location', (req, res) => {
     res.send('Inventory updated successfully');
   });
 });
+
 
 // Mark orders made before a certain date as EXPIRED
 app.put('/api/orders/expire/:date', (req, res) => {
@@ -262,6 +285,98 @@ app.put('/api/orders/expire/:date', (req, res) => {
   });
 });
 
+// Mark a specific order as EXPIRED
+app.put('/api/orders/expire/:orderID', (req, res) => {
+  const { orderID } = req.params; // Get the orderID from URL
+  const query = `
+    UPDATE Orders
+    SET orderStatus = 'EXPIRED'
+    WHERE orderID = ?
+  `
+  db.query(query, [orderID], (err, results) => {
+    if (err) {
+      console.error(err);
+      return res.status(500).send('Error marking order as EXPIRED');
+    }
+    if (results.affectedRows === 0) {
+      return res.status(404).send('No order found with the given orderID');
+    }
+    res.send(`Order ${orderID} marked as EXPIRED`);
+  });
+});
+// View all orders made before a certain date
+app.get('/api/orders/before/:date', (req, res) => {
+  const { date } = req.params; // Get the date parameter from URL
+  const query = `
+    SELECT * FROM Orders
+    WHERE orderDate < ?
+  `;
+
+  // Execute the query
+  db.query(query, [date], (err, results) => {
+    if (err) {
+      console.error(err);
+      return res.status(500).send('Error retrieving orders');
+    }
+
+    // If no orders are found, send a 404 message
+    if (results.length === 0) {
+      return res.status(404).send('No orders found before the given date');
+    }
+
+    res.json(results); // Return the orders
+  });
+});
+
+
+// Endpoint to get low stock products with sales data
+app.get('/api/reports/low-stock-sales', (req, res) => {
+  const query = `
+    SELECT 
+      p.productID, 
+      p.name AS productName,
+      p.category,
+      p.brand,
+      p.price,
+      MIN(i.quantity) AS currentStock, 
+      i.restockThreshold,
+      IF(MIN(i.quantity) < i.restockThreshold, 'Yes', 'No') AS isLowStock,
+      COALESCE(SUM(oi.quantity), 0) AS totalSold,  -- SUM of quantities sold
+      COALESCE(SUM(oi.quantity * p.price), 0) AS totalSales -- Total sales value
+    FROM 
+      Inventory i
+    JOIN 
+      Product p ON i.productID = p.productID
+    LEFT JOIN 
+      OrderItem oi ON i.productID = oi.productID
+    LEFT JOIN 
+      Orders o ON oi.orderID = o.orderID
+    WHERE 
+      o.orderStatus != 'EXPIRED'  -- Exclude expired orders
+    GROUP BY 
+      p.productID, i.restockThreshold  -- Include necessary columns in GROUP BY
+    HAVING 
+      isLowStock = 'Yes'  -- Filter only low stock products
+    ORDER BY 
+      totalSold DESC;  -- Sort by the most sold products
+  `;
+
+  // Execute the query to fetch data from the database
+  db.query(query, (err, results) => {
+    if (err) {
+      console.error('Error fetching low stock sales data:', err);
+      return res.status(500).send('Error fetching data');
+    }
+
+    // Check if results are empty
+    if (results.length === 0) {
+      return res.status(404).send('No low stock products with sales found');
+    }
+
+    // Return the results as a JSON response
+    res.json(results);
+  });
+});
 
 
 app.listen(5050, () => {

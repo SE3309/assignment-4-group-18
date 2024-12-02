@@ -31,25 +31,49 @@ export default function Restock() {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    
+
     // Validation for inputs
     if (!location || !quantityToAdd) {
       setMessage('Please enter location and quantity.');
       return;
     }
 
+    // Fetch the current product to get the current quantity
+    const product = products.find(
+      (p) => p.productID === selectedProduct && p.location === location
+    );
+
+    if (!product) {
+      setMessage('Product not found at the given location.');
+      return;
+    }
+
+    // Calculate the new quantity by adding the quantity to the current quantity
+    const updatedQuantity = product.quantity + parseInt(quantityToAdd);
+
     // Prepare data for API request
     const restockData = {
-      productID: selectedProduct,
-      location,
-      quantity: parseInt(quantityToAdd),
+      quantity: updatedQuantity, // Sending the updated quantity
     };
 
     // Send PUT request to update inventory
     axios
-      .put('/api/inventory/restock', restockData)
+      .put(
+        `http://localhost:5050/api/inventory/update/${selectedProduct}/${location}`,
+        restockData
+      )
       .then((response) => {
         setMessage(response.data); // Success message
+
+        // Update the local state to reflect the updated inventory in real-time
+        setProducts(
+          products.map((p) =>
+            p.productID === selectedProduct && p.location === location
+              ? { ...p, quantity: updatedQuantity }
+              : p
+          )
+        );
+
         setShowForm(false); // Hide the form after successful update
         setLocation('');
         setQuantityToAdd('');
@@ -63,10 +87,6 @@ export default function Restock() {
   return (
     <div className="container">
       <h1 className="text-center">Restock Page</h1>
-      <p className="mt-20">
-        Manage restocking of products here.
-      </p>
-
       {message && <p className="text-danger">{message}</p>}
 
       <table className="table table-bordered mt-4">
@@ -102,7 +122,9 @@ export default function Restock() {
                 <td>
                   <button
                     className="btn btn-warning"
-                    onClick={() => handleRestock(product.productID, product.location)}
+                    onClick={() =>
+                      handleRestock(product.productID, product.location)
+                    }
                   >
                     Restock
                   </button>
