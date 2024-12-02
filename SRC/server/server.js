@@ -155,6 +155,38 @@ app.delete('/api/products/:productID', (req, res) => {
     res.send('Product deleted');
   });
 });
+
+// Get Product Inventory by Product ID
+app.get('/api/inventory/:productID', (req, res) => {
+  const { productID } = req.params;
+  const query = `
+    SELECT 
+      Product.productID, 
+      Product.name AS productName, 
+      Product.category, 
+      Product.brand, 
+      Product.price, 
+      Inventory.location, 
+      Inventory.quantity, 
+      Inventory.restockThreshold
+    FROM Inventory
+    JOIN Product ON Inventory.productID = Product.productID
+    WHERE Product.productID = ?
+  `;
+  
+  db.query(query, [productID], (err, results) => {
+    if (err) {
+      console.error(err);
+      return res.status(500).send('Error retrieving inventory for product');
+    }
+    if (results.length === 0) {
+      return res.status(404).send('No inventory found for the given product ID');
+    }
+    res.json(results);
+  });
+});
+
+
 // USING JOIN Get all reviews for a specific product
 app.get('/api/reviews/:productID', (req, res) => {
   const { productID } = req.params;
@@ -163,6 +195,7 @@ app.get('/api/reviews/:productID', (req, res) => {
     FROM Review r
     JOIN User u ON r.customerID = u.userID
     WHERE r.productID = ?
+    ORDER BY r.datePosted DESC
   `;
   
   db.query(query, [productID], (err, results) => {
@@ -176,6 +209,87 @@ app.get('/api/reviews/:productID', (req, res) => {
     res.json(results);
   });
 });
+
+// Get all products where restockThreshold > quantity
+app.get('/api/inventory/restock', (req, res) => {
+  const query = `
+    SELECT 
+      Product.productID, 
+      Product.name AS productName, 
+      Product.category, 
+      Product.brand, 
+      Product.price, 
+      Inventory.location, 
+      Inventory.quantity, 
+      Inventory.restockThreshold
+    FROM Inventory
+    JOIN Product ON Inventory.productID = Product.productID
+    WHERE Inventory.restockThreshold > Inventory.quantity
+  `;
+  
+  db.query(query, (err, results) => {
+    if (err) {
+      console.error(err);
+      return res.status(500).send('Error retrieving inventory data');
+    }
+    res.json(results);
+  });
+});
+
+// PUT Product Inventory based on productID and location
+app.put('/api/inventory/update/:productID/:location', (req, res) => {
+  const { productID, location } = req.params; // Get productID and location from URL params
+  const { quantity, restockThreshold } = req.body; // Get new quantity and restockThreshold from the request body
+
+  if (quantity === undefined || restockThreshold === undefined) {
+    return res.status(400).send('Quantity and restockThreshold are required');
+  }
+
+  // SQL query to update the inventory based on productID and location
+  const query = `
+    UPDATE Inventory
+    SET quantity = ?, restockThreshold = ?
+    WHERE productID = ? AND location = ?
+  `;
+
+  db.query(query, [quantity, restockThreshold, productID, location], (err, results) => {
+    if (err) {
+      console.error(err);
+      return res.status(500).send('Error updating inventory');
+    }
+
+    if (results.affectedRows === 0) {
+      return res.status(404).send('No inventory found for the given productID and location');
+    }
+
+    res.send('Inventory updated successfully');
+  });
+});
+
+// Mark orders made before a certain date as EXPIRED
+app.put('/api/orders/expire/:date', (req, res) => {
+  const { date } = req.params; // Get the date parameter from URL
+  const query = `
+    UPDATE Orders
+    SET orderStatus = 'EXPIRED'
+    WHERE orderDate < ?
+  `;
+
+  // Execute the query
+  db.query(query, [date], (err, results) => {
+    if (err) {
+      console.error(err);
+      return res.status(500).send('Error marking orders as EXPIRED');
+    }
+    // If no orders were updated, send a 404 message
+    if (results.affectedRows === 0) {
+      return res.status(404).send('No orders found before the given date');
+    }
+
+    res.send(`${results.affectedRows} orders marked as EXPIRED`);
+  });
+});
+
 
 
 app.listen(5050, () => {
