@@ -3,6 +3,10 @@ const mysql = require('mysql2');
 const app = express();
 const dotenv = require('dotenv');
 dotenv.config();
+const cors = require('cors');
+app.use(cors());
+
+app.use(express.json());
 const db = mysql.createConnection({
   host: process.env.HOST,
   port: process.env.PORT,       
@@ -155,38 +159,6 @@ app.delete('/api/products/:productID', (req, res) => {
     res.send('Product deleted');
   });
 });
-
-// Get Product Inventory by Product ID
-app.get('/api/inventory/:productID', (req, res) => {
-  const { productID } = req.params;
-  const query = `
-    SELECT 
-      Product.productID, 
-      Product.name AS productName, 
-      Product.category, 
-      Product.brand, 
-      Product.price, 
-      Inventory.location, 
-      Inventory.quantity, 
-      Inventory.restockThreshold
-    FROM Inventory
-    JOIN Product ON Inventory.productID = Product.productID
-    WHERE Product.productID = ?
-  `;
-  
-  db.query(query, [productID], (err, results) => {
-    if (err) {
-      console.error(err);
-      return res.status(500).send('Error retrieving inventory for product');
-    }
-    if (results.length === 0) {
-      return res.status(404).send('No inventory found for the given product ID');
-    }
-    res.json(results);
-  });
-});
-
-
 // USING JOIN Get all reviews for a specific product
 app.get('/api/reviews/:productID', (req, res) => {
   const { productID } = req.params;
