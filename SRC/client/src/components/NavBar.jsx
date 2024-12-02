@@ -7,8 +7,8 @@ export default function NavBar() {
       <h1>Computer Store</h1>
       <div>
         <Link to="/">Home</Link>
-        <Link to="/product">Product</Link>
         <Link to="/user">User</Link>
+        <Link to="/product">Product</Link>
         <Link to="/restock">Restock</Link>
         <Link to="/orders">Orders</Link>
       </div>
